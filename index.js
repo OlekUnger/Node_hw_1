@@ -2,54 +2,55 @@ const fs = require('fs');
 const path = require('path');
 let program = require('commander');
 
+function getAllFiles(folderName, dest, cb){
+    fs.readdir(folderName, (err, files) => {
+        if (err) throw err;
+        for (let file of files) {
+            let filePath = path.join(folderName, file);
 
-function getAllFiles(folderName) {
-    let files = fs.readdirSync(folderName);
+            fs.stat(filePath, (err, stat) => {
+                if (err) throw err;
 
-    for (let file of files) {
-        let filePath = path.join(folderName, file);
-        let stat = fs.statSync(filePath);
+                if (!stat.isDirectory()) {
+                    let firstLetter = file[0].toLowerCase(),
+                        Dest = path.join(dest, firstLetter),
+                        newFilePath = path.join(Dest, file);
 
-        if (!stat.isDirectory()) {
-            let firstLetter = file[0].toLowerCase(),
-                fileDest = path.join('dest', firstLetter, file);
-
-            if (!fs.existsSync(path.join('dest', firstLetter))) {
-                fs.mkdirSync(path.join('dest', firstLetter));
-            }
-
-            fs.renameSync(filePath, fileDest);
-
-        } else {
-            getAllFiles(filePath);
+                    fs.mkdir(Dest, { recursive: true }, (err) => {
+                        if (err) throw err;
+                        fs.rename(filePath, newFilePath, (err)=>{
+                            if(err) throw err;
+                            cb(folderName);
+                        });
+                    });
+                } else {
+                    getAllFiles(filePath, dest, cb);
+                }
+            });
         }
-    }
-};
+    });
+}
 
-function removeDir(folderName) {
-    let files = fs.readdirSync(folderName);
-
-    for (let file of files) {
-        let filePath = path.join(folderName, file);
-        removeDir(filePath);
-    }
-
-    fs.rmdirSync(folderName);
+function removeDir(folderName){
+    fs.readdir(folderName, (err, files) => {
+        if (err) {
+            throw err;
+            process.exit(1);
+        }
+        if(files.length == 0) {
+            fs.rmdir(folderName, err=>{
+                if(err) throw err;
+            });
+        }
+    })
 }
 
 program
     .command('rmv')
     .arguments('<dir1> <dir2>')
-    .option('-r, --recursive', 'Remove recursively')
-    .action(function (dir1, dir2, cmd) {
-        if (!fs.existsSync(dir2)) {
-            fs.mkdirSync(dir2);
-        }
-        getAllFiles(dir1, dir2);
+    .action(function (dir1, dir2) {
+        getAllFiles(dir1,dir2, removeDir);
+    })
 
-        if (cmd.recursive) {
-            removeDir(dir1);
-        }
-    });
-
+;
 program.parse(process.argv);
